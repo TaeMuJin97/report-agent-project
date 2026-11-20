@@ -24,9 +24,29 @@ def summarize(db:Session,rid:int):
 
 
 def run_agent(db:Session,body:dict)->dict:
-    """TODO B-14 · run_agent() — mentor와 동일한 함수 계약을 완성하세요."""
-    # TODO B-14: get_report/find_report/summarize_report 명시적 action을 허용하고 해당 도구만
-    # TODO B-14: 호출하세요. 필요한 인자가 없으면 422, Tool Calling은 Basic 범위에서 차단.
-    # 입력·반환형과 예외·상태코드는 요구사항 명세서/API 계약을 참조합니다.
-    # 정답 구현 후 아래 예외를 지우고 로직을 작성하세요.
-    raise NotImplementedError("B-14 · run_agent() TODO 미완성")
+    if body.get('agent_mode')=='tool_calling':
+        raise DomainError(422,'VALIDATION_ERROR','Tool Calling은 Advanced 기능입니다.')
+    action=body.get('action'); rid=body.get('report_id');query=(body.get('query') or '').strip()
+    if action=='get_report':
+        if not rid:raise DomainError(422,'VALIDATION_ERROR','report_id가 필요합니다.')
+        data=report_service.get_report(db,rid);tools=['get_report']
+    elif action=='find_report':
+        if not query:raise DomainError(422,'VALIDATION_ERROR','query가 필요합니다.')
+        data=search_service.find_similar(db,query);tools=['find_similar_report']
+    elif action=='summarize_report':
+        if not rid:raise DomainError(422,'VALIDATION_ERROR','report_id가 필요합니다.')
+        data=summarize(db,rid);tools=['summarize_report']
+    elif action=='search_and_summarize' and at_least('intermediate'):
+        if not query:raise DomainError(422,'VALIDATION_ERROR','query가 필요합니다.')
+        found=search_service.find_similar(db,query);tools=['find_similar_report']
+        if found['status']=='found':
+            data={'search':found,'summary':summarize(db,found['best_match']['report_id'])}
+            tools.append('summarize_report')
+        else:
+            # 불필요한 유료 LLM API 호출을 하지 않습니다.
+            data={'search':found,'summary':None}
+    else:
+        raise DomainError(422,'VALIDATION_ERROR','지원하지 않는 Agent action입니다.')
+    result={'action':action,'status':'completed','tool_calls':tools,'data':data}
+    if at_least('advanced'):record_run(action,'completed',len(tools))
+    return result
