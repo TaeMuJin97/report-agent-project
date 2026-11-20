@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 
-from app.schemas.report import CategoryCode
+from app.schemas.report import ReportCreate, CategoryCode
 
 from app.services import report_service
 
@@ -21,6 +21,10 @@ router=APIRouter(prefix='/api/v1',tags=['Reports & Categories'])
 @router.get('/categories')
 def categories(db:Session=Depends(get_db)):
     return report_service.categories(db)
+
+@router.post('/reports',status_code=201)
+def create_report(body:ReportCreate,db:Session=Depends(get_db)):
+    return report_service.create_report(db,body)
 
 @router.get('/reports')
 def list_reports(title:str|None=None,limit:int=Query(20,ge=1,le=100),
