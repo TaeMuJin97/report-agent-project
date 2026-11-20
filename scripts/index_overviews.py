@@ -12,13 +12,37 @@ from app.core.config import settings
 
 
 def index_overviews():
-    """TODO B-10 · index_overviews() — mentor와 동일한 함수 계약을 완성하세요."""
-    # TODO B-10: seed 적재 후 reports의 overview/revision을 읽어 실제 E5 passage 벡터를 batch
-    # TODO B-10: 처리하세요. report_embeddings report_id PK를 기준으로 1행 유지,
-    # TODO B-10: indexed_revision/overview_hash/ready를 갱신하고 180개를 확인하세요.
-    # 입력·반환형과 예외·상태코드는 요구사항 명세서/API 계약을 참조합니다.
-    # 정답 구현 후 아래 예외를 지우고 로직을 작성하세요.
-    raise NotImplementedError("B-10 · index_overviews() TODO 미완성")
+    with get_session_factory()() as db:
+        records=db.scalars(select(Report).order_by(Report.report_id)).all()
+        values=[(r.report_id,r.overview,r.revision,r.index_status) for r in records]
+        db.rollback()
+    print(f'대상 보고서: {len(values)}개 / model={settings.embedding_model}')
+    if not values:raise RuntimeError('먼저 sql/seed.sql을 실행하세요.')
+    # 동일 model의 동일 Overview를 재실행해도 보고서당 Vector 1건 유지.
+    for start in range(0,len(values),16):
+        batch=values[start:start+16]
+        vectors=emb.encode([row[1] for row in batch],kind='passage')
+        with get_session_factory()() as db:
+            with db.begin():
+                for (rid,overview,rev,oldstatus),vector in zip(batch,vectors):
+                    report=db.scalar(select(Report).where(Report.report_id==rid).with_for_update())
+                    if report is None:continue
+                    if report.revision!=rev or report.overview!=overview:
+                        # 동시 변경이 있다면 잘못된 벡터를 덮어쓰지 않고 다음 배치/재실행 때 처리.
+                        print(f'SKIP 변경된 보고서 {rid}');continue
+                    target=db.get(ReportEmbedding,rid)
+                    if target is None:target=ReportEmbedding(report_id=rid);db.add(target)
+                    target.embedding=vector
+                    target.model_name=settings.embedding_model
+                    target.overview_hash=emb.overview_hash(overview)
+                    target.indexed_revision=rev
+                    target.indexed_at=datetime.now(timezone.utc)
+                    report.index_status='ready'
+        print(f'완료: {min(start+len(batch),len(values))}/{len(values)}')
+    with get_session_factory()() as db:
+        count=db.query(ReportEmbedding).count()
+        ready=db.query(Report).filter(Report.index_status=='ready').count()
+    print(f'검증: vectors={count}, ready={ready}; seed 초기 상태라면 각각 180이어야 합니다.')
 
 def main():
     """실행 진입점: 실제 적재 절차는 index_overviews()에서 수행합니다."""
