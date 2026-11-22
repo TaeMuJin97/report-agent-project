@@ -6,11 +6,24 @@ from app.api import reports,search,agent
 from app.db.session import get_session_factory
 from app.services.errors import DomainError
 from app.core.config import at_least
+# 1) 파일 상단 import 구역에 아래 3줄 추가
+from pathlib import Path
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 app=FastAPI(title='Report Agent | 2026-11-20',version='1.0.0')
 app.include_router(reports.router)
 app.include_router(search.router)
 app.include_router(agent.router)
+# 2) 반드시 app = FastAPI(...) 선언 아래쪽 (라우터 등록 아래 추천)에 아래 블록 추가
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+@app.get("/", response_class=FileResponse, include_in_schema=False)
+def frontend():
+    # 화면의 JavaScript가 기존 /api/v1/... API를 같은 서버로 요청합니다.
+    return FileResponse(STATIC_DIR / "index.html")
 
 @app.exception_handler(DomainError)
 def on_domain_error(request:Request,exc:DomainError):
