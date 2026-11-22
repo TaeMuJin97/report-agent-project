@@ -78,8 +78,9 @@ report-agent-project/
 │   ├── integrations/        # E5 임베딩 클라이언트 & OpenAI LLM 클라이언트
 │   ├── repositories/        # 보고서 조회·직렬화 Repository
 │   ├── schemas/             # Pydantic 요청/응답 스키마 계약
-│   ├── services/            # 보고서 CRUD, Hybrid 검색, Basic Agent 비즈니스 로직
-│   └── main.py              # FastAPI 앱 진입점
+│   ├── services/            # 비즈니스 로직 (CRUD, Hybrid Search, Agent)
+│   ├── static/              # Vanilla JS 프론트엔드 (index.html, app.js, styles.css, favicon.svg)
+│   └── main.py              # FastAPI 앱 진입점, 정적 파일 마운트 및 라우터 등록
 ├── common/
 │   └── sql/                 # schema.sql, seed.sql (180건), verify.sql
 ├── scripts/
@@ -140,8 +141,9 @@ python scripts/index_overviews.py
 ```bash
 python -m app.main
 ```
-* Swagger UI: `http://127.0.0.1:8000/docs`
-
+* 웹 UI (Frontend): `http://127.0.0.1:8000/`
+* Swagger UI (API 문서): `http://127.0.0.1:8000/docs`
+* Health Check: `http://127.0.0.1:8000/health`
 ---
 
 ## 6. 테스트 및 무결성 검증
